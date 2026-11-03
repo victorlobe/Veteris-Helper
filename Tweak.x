@@ -493,7 +493,8 @@ static pid_t VHProcessIdentifierFromUserInfo(NSDictionary *userInfo) {
 %hook SBApplication
 
 - (BOOL)isInternalApplication {
-    return %orig || [VHApplicationBundleIdentifier(self) isEqualToString:kVeterisBundleIdentifier];
+    BOOL internal = %orig;
+    return internal || [VHApplicationBundleIdentifier(self) isEqualToString:kVeterisBundleIdentifier];
 }
 
 %end
