@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="120" height="120" alt="HelperIcon" src="https://github.com/user-attachments/assets/d1b6ccac-4597-428c-9e10-98d4ca5152db" />
+</p>
+
 <h1 align="center">Veteris Helper</h1>
 
 <p align="center">
