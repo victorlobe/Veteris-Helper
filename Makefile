@@ -26,6 +26,31 @@ PROJECT_NAME = VeterisHelper
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = VeterisHelper
+TWEAK_NAME += VeterisAuth
+
+AUTH_CORE ?= $(CURDIR)/VeterisAuthCore
+AUTH_MBEDTLS ?= $(CURDIR)/mbedtls
+-include $(CURDIR)/Auth/local.mk
+AUTH_KIND ?= $(if $(FINALPACKAGE),release,dev)
+ifneq ($(FINALPACKAGE),)
+ifneq ($(AUTH_KIND),release)
+$(error Release packages require AUTH_KIND=release)
+endif
+endif
+AUTH_SECRETS_DIR ?= $(HOME)/.veteris-secrets/auth
+AUTH_PUBLIC_KEYS ?= $(CURDIR)/Auth/server-public-keys.txt
+AUTH_BUILD_DIR := $(CURDIR)/.theos/auth/$(AUTH_KIND)
+AUTH_VERSION := $(shell sed -n 's/^Version: //p' $(CURDIR)/control)
+AUTH_MODULES := bignum ecp ecp_curves chacha20 poly1305 chachapoly sha256 md hkdf platform_util constant_time hmac_drbg
+AUTH_ATTEST := $(AUTH_CORE)/src/vauth_attest.c
+VeterisAuth_ARCHS = armv7
+VeterisAuth_FILES = VeterisAuth.x $(AUTH_CORE)/src/vauth.c $(AUTH_CORE)/src/vauth_attest_message.c $(AUTH_ATTEST) $(addprefix $(AUTH_MBEDTLS)/library/,$(addsuffix .c,$(AUTH_MODULES)))
+VeterisAuth_CFLAGS = -fobjc-arc -fvisibility=hidden -I$(AUTH_CORE)/include -I$(AUTH_BUILD_DIR) -I$(AUTH_MBEDTLS)/include -I$(CURDIR)/Auth -DMBEDTLS_CONFIG_FILE=\"mbedtls_config.h\"
+VeterisAuth_FRAMEWORKS = Foundation Security
+
+before-all:: auth-prepare
+auth-prepare:
+	@python3 "$(CURDIR)/Auth/prepare_build.py" --kind "$(AUTH_KIND)" --secrets-dir "$(AUTH_SECRETS_DIR)" --public-keys "$(AUTH_PUBLIC_KEYS)" --output "$(AUTH_BUILD_DIR)" --version "$(AUTH_VERSION)" $(AUTH_PREPARE_FLAGS)
 
 VeterisHelper_FILES = Tweak.x
 VeterisHelper_CFLAGS = -fobjc-arc
@@ -39,9 +64,10 @@ include $(THEOS_MAKE_PATH)/tweak.mk
 MAKEFLAGS += -j1
 
 after-all:: check-thumb-bits
+after-all:: check-auth-imports
 
+ifneq ($(LOCAL_PACKAGE),1)
 before-package:: remove-git-lock
-
 ifeq ($(FINALPACKAGE),)
 after-package:: dev-pipeline
 else
@@ -49,11 +75,22 @@ before-package:: release-overwrite-check
 after-package:: commit-archive
 after-package:: release-pipeline
 endif
+endif
 
-.PHONY: dev-pipeline release-pipeline release-overwrite-check remove-git-lock archive-build commit-archive check-thumb-bits
+after-stage::
+	@$(TARGET_STRIP) -x "$(THEOS_STAGING_DIR)/Library/MobileSubstrate/DynamicLibraries/VeterisAuth.dylib"
+	@$(TARGET_CODESIGN) $(TARGET_CODESIGN_FLAGS) "$(THEOS_STAGING_DIR)/Library/MobileSubstrate/DynamicLibraries/VeterisAuth.dylib"
+
+.PHONY: dev-pipeline release-pipeline release-overwrite-check remove-git-lock archive-build commit-archive check-thumb-bits check-auth-imports auth-prepare
+
+check-auth-imports:
+	@if nm -u "$(THEOS_OBJ_DIR)/VeterisAuth.dylib" | grep -qE '_OBJC_(META)?CLASS_\$$_NSObject$$'; then \
+		echo "[❌] VeterisAuth.dylib imports NSObject; it would not load on iOS 5" 1>&2; exit 1; \
+	else echo "[✅] VeterisAuth.dylib has no NSObject import (loads on iOS 5)"; fi
 
 check-thumb-bits:
-	@/bin/bash "$(CURDIR)/check-thumb-bits.sh" "$(THEOS_OBJ_DIR)/$(TWEAK_NAME).dylib"
+	@/bin/bash "$(CURDIR)/check-thumb-bits.sh" "$(THEOS_OBJ_DIR)/VeterisHelper.dylib"
+	@/bin/bash "$(CURDIR)/check-thumb-bits.sh" "$(THEOS_OBJ_DIR)/VeterisAuth.dylib"
 
 archive-build:
 	@echo "[🗃️ ] Archive build artifacts…" 1>&2
