@@ -1,12 +1,14 @@
 Package: com.victorlobe.veterishelper
 Name: Veteris Helper
-Version: 1.3
+Version: 1.3.1
 Architecture: iphoneos-arm
 Description: Veteris's little friend.
 Homepage: http://www.veteris.victorlobe.me/
+Depiction: http://repo.victorlobe.me/depictions/depiction.html?id=com.victorlobe.veterishelper
 Maintainer: Victor
 Author: Victor
 Section: Utilities
+Icon: file:///Library/Application%20Support/com.victorlobe.veterishelper/icon.png
 Depends: mobilesubstrate (>= 0.9.5000)
 Conflicts: com.ixmoe.1pwn.Veteris, moe.yzu.veterishelper
 Replaces: com.ixmoe.1pwn.Veteris, moe.yzu.veterishelper
