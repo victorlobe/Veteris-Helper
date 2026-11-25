@@ -15,7 +15,7 @@ export TARGET_CODESIGN_ALLOCATE := $(PINNED_TOOLCHAIN_BIN)/codesign_allocate
 export TARGET_DSYMUTIL := $(PINNED_TOOLCHAIN_BIN)/dsymutil
 export TARGET_STRIP := $(PINNED_TOOLCHAIN_BIN)/strip
 export ARCHS = armv7 arm64
-TARGET := iphone:7.1
+TARGET := iphone:7.1:5.0
 INSTALL_TARGET_PROCESSES = SpringBoard
 
 REPO_DEV ?= /Volumes/victor/Sites/repo-dev
@@ -28,8 +28,8 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = VeterisHelper
 TWEAK_NAME += VeterisAuth
 
-AUTH_CORE ?= $(CURDIR)/VeterisAuthCore
-AUTH_MBEDTLS ?= $(CURDIR)/mbedtls
+AUTH_CORE ?= $(GIT_ROOT)/VeterisAuthCore
+AUTH_MBEDTLS ?= $(GIT_ROOT)/VeterisApp/deps/mbedtls
 -include $(CURDIR)/Auth/local.mk
 AUTH_KIND ?= $(if $(FINALPACKAGE),release,dev)
 ifneq ($(FINALPACKAGE),)
@@ -65,6 +65,7 @@ MAKEFLAGS += -j1
 
 after-all:: check-thumb-bits
 after-all:: check-auth-imports
+after-all:: check-helper-imports
 
 ifneq ($(LOCAL_PACKAGE),1)
 before-package:: remove-git-lock
@@ -81,12 +82,18 @@ after-stage::
 	@$(TARGET_STRIP) -x "$(THEOS_STAGING_DIR)/Library/MobileSubstrate/DynamicLibraries/VeterisAuth.dylib"
 	@$(TARGET_CODESIGN) $(TARGET_CODESIGN_FLAGS) "$(THEOS_STAGING_DIR)/Library/MobileSubstrate/DynamicLibraries/VeterisAuth.dylib"
 
-.PHONY: dev-pipeline release-pipeline release-overwrite-check remove-git-lock archive-build commit-archive check-thumb-bits check-auth-imports auth-prepare
+.PHONY: dev-pipeline release-pipeline release-overwrite-check remove-git-lock archive-build commit-archive check-thumb-bits check-auth-imports check-helper-imports auth-prepare
 
 check-auth-imports:
 	@if nm -u "$(THEOS_OBJ_DIR)/VeterisAuth.dylib" | grep -qE '_OBJC_(META)?CLASS_\$$_NSObject$$'; then \
 		echo "[❌] VeterisAuth.dylib imports NSObject; it would not load on iOS 5" 1>&2; exit 1; \
 	else echo "[✅] VeterisAuth.dylib has no NSObject import (loads on iOS 5)"; fi
+
+check-helper-imports:
+	@test -f "$(THEOS_OBJ_DIR)/VeterisHelper.dylib" || { echo "[❌] VeterisHelper.dylib not found" 1>&2; exit 1; }
+	@if nm -m -u -arch armv7 "$(THEOS_OBJ_DIR)/VeterisHelper.dylib" | grep -qE '_OBJC_(META)?CLASS_\$$_NSObject \(from libobjc\)'; then \
+		echo "[❌] VeterisHelper.dylib imports NSObject from libobjc; it would not load on iOS 5" 1>&2; exit 1; \
+	else echo "[✅] VeterisHelper.dylib does not import NSObject from libobjc (loads on iOS 5)"; fi
 
 check-thumb-bits:
 	@/bin/bash "$(CURDIR)/check-thumb-bits.sh" "$(THEOS_OBJ_DIR)/VeterisHelper.dylib"
